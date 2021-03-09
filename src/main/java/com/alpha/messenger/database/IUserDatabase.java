@@ -1,6 +1,7 @@
 package com.alpha.messenger.database;
 
 import com.alpha.messenger.persistance.model.Friend;
+import com.alpha.messenger.persistance.model.Message;
 import com.alpha.messenger.persistance.model.User;
 
 import java.util.List;
@@ -20,4 +21,11 @@ public interface IUserDatabase {
     public List<Friend> getFriends(Integer userId);
     public boolean makeOnline(String token);
     public boolean makeOffline(String token);
+    public List<Message> getMessages(String token);
+    public String getPrivateKeyServer(String username);
+    public String getPublicKeyClient(String username);
+    String generatePairKey(String token);
+    Integer updatePublicClientKey(String token, String pbKey);
+
+    Integer store(Message message);
 }

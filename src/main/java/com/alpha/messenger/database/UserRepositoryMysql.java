@@ -1,6 +1,7 @@
 package com.alpha.messenger.database;
 
 import com.alpha.messenger.persistance.model.Friend;
+import com.alpha.messenger.persistance.model.Message;
 import com.alpha.messenger.persistance.model.User;
 import com.alpha.messenger.web.error.UserAlreadyExistException;
 import com.alpha.messenger.web.util.MyJWT;
@@ -9,9 +10,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 
+import java.security.Key;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.Base64;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -201,4 +206,116 @@ public class UserRepositoryMysql implements IUserDatabase{
         }
         return false;
     }
+
+    @Override
+    public List<Message> getMessages(String token) {
+        List<Message> messages = null;
+        if(validateJwt(token)){
+            User user = getUserByToken(token);
+            String sql = "SELECT * FROM Messages";
+            try{
+                messages = this.jdbcTemplate.query(sql, new RowMapper<Message>() {
+                    @Override
+                    public Message mapRow(ResultSet resultSet, int i) throws SQLException {
+                        Message message = new Message();
+                        message.setFrom(resultSet.getString("from"));
+                        message.setBody(resultSet.getString("message"));
+                        message.setTimestamp(resultSet.getLong("timestamp"));
+                        message.setType(resultSet.getString("type_message"));
+                        return message;
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        return messages;
+    }
+
+    @Override
+    public String generatePairKey(String token) {
+        try {
+            if (validateJwt(token)) {
+                User user = getUserByToken(token);
+                if (user != null) {
+                    KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+                    kpg.initialize(1024);
+                    KeyPair kp = kpg.generateKeyPair();
+                    Key pub = kp.getPublic();
+                    Key pvt = kp.getPrivate();
+                    String pubEncBase64 = Base64.getEncoder().encodeToString(pub.getEncoded());
+                    String pvtEncBase64 = Base64.getEncoder().encodeToString(pvt.getEncoded());
+                    Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+                    this.jdbcTemplate.update("REPLACE INTO EPairKeyServer(username, fullName, keyPb, keyPv, formatKeyPb, formatKeyPv, createdAt) " +
+                            "VALUES(?, ?, ?, ?, ?, ?, ?)", user.getUsername(), user.getFullName(), pubEncBase64, pvtEncBase64, pub.getFormat(), pvt.getFormat(), timestamp.getTime());
+                    return Base64.getEncoder().encodeToString(pub.getEncoded());
+                } else {
+                    return "";
+                }
+            } else {
+                return "";
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
+
+    @Override
+    public Integer updatePublicClientKey(String token, String pbKey) {
+        try {
+            if (validateJwt(token)) {
+                User user = getUserByToken(token);
+                if (user != null) {
+                    Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+                    this.jdbcTemplate.update("REPLACE INTO EPairKeyClient(username, fullName, keyPb, createdAt) " +
+                            "VALUES(?, ?, ?, ?)", user.getUsername(), user.getFullName(), pbKey, timestamp.getTime());
+                    return 0;
+                } else {
+                    return -1;
+                }
+            } else {
+                return -1;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return -1;
+    }
+
+    @Override
+    public Integer store(Message message) {
+        String sql = "INSERT INTO Messages(`from`, message, timestamp, type_message) VALUES(?, ?, ?, ?)";
+        try{
+            Integer rowModified = this.jdbcTemplate.update(sql, message.getFrom(), message, message.getBody(),
+                    message.getTimestamp(), message.getType());
+            return rowModified;
+        }catch (Exception e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
+    @Override
+    public String getPrivateKeyServer(String username) {
+        try {
+            String sql = "SELECT keyPv FROM EPairKeyServer WHERE username=?";
+            return this.jdbcTemplate.queryForObject(sql, new String[]{username}, String.class);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    @Override
+    public String getPublicKeyClient(String username) {
+        try {
+            String sql = "SELECT keyPb FROM EPairKeyClient WHERE username=?";
+            return this.jdbcTemplate.queryForObject(sql, new String[]{username}, String.class);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
 }
