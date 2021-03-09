@@ -32,30 +32,14 @@ public class MessengerRestController {
 
     @MessageMapping("/chat/{to}")
     public void sendMessage(@DestinationVariable String to, Message message) {
-        if(message.getType().equals("text")) {
-            String pvtKey = this.userService.getPrivateKeyServer(message.getFrom());
-            if(pvtKey != null) {
-                String decryptMessage = Encryption.decryptRSA(message.getBody(), pvtKey);
-                message.setBody(decryptMessage);
-                Integer result = this.userService.store(message);
-                if(result != -1){
-                    System.out.println("Successfully stored messages");
-                }
-                String pbKey = this.userService.getPublicKeyClient(message.getFrom());
-                String encryptedMessage = Encryption.encryptRSA(message.getBody(), pbKey);
-                message.setBody(encryptedMessage);
-                smtp.convertAndSend("/topic/messages/" + to, message);
-            } else {
-                System.out.println("Null private key");
-            }
-        } else if(message.getType().equals("image")) {
-            Integer result = this.userService.store(message);
-            if(result != -1){
-                System.out.println("Successfully stored messages");
-            }
-            smtp.convertAndSend("/topic/messages/" + to, message);
-        } else{
-            System.out.println("IDK format");
+        // broadcast
+        if(to.equals("all")) {
+            Integer id = userService.getIdByUsername(message.getFrom());
+            List<Friend> friends = userService.getFriends(id);
+            friends.forEach(f -> {
+                smtp.convertAndSend("/topic/messages/" + f.getUsername(), message);
+            });
+            userService.store(message);
         }
     }
 
@@ -130,33 +114,4 @@ public class MessengerRestController {
         }
         return ResponseEntity.status(204).build();
     }
-
-    @PostMapping("/user/pubKey")
-    @ResponseBody
-    public ResponseEntity<?> getPublicServerKey(final HttpServletRequest request) {
-        try {
-            String token = request.getHeader("authorization").split(" ")[1];
-            String pbKey = this.userService.generatePairKey(token);
-            if (!pbKey.isEmpty())
-                return new ResponseEntity<>(pbKey, HttpStatus.CREATED);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-    }
-
-    @PostMapping("/pubKey")
-    @ResponseBody
-    public ResponseEntity<?> setPublicClientKey(final HttpServletRequest request, @RequestBody String pbKey) {
-        try {
-            String token = request.getHeader("authorization").split(" ")[1];
-            Integer result = this.userService.updatePublicClientKey(token, pbKey);
-            if (result != -1)
-                return new ResponseEntity<>(HttpStatus.CREATED);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-    }
-
 }

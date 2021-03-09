@@ -155,6 +155,18 @@ public class UserRepositoryMysql implements IUserDatabase{
     }
 
     @Override
+    public Integer getIdByUsername(String username) {
+        try {
+            String sql = "SELECT id from Users where username=?";
+            Integer id = jdbcTemplate.queryForObject(sql, new Object[] {username}, Integer.class);
+            return id;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    @Override
     public List<Friend> getFriends(Integer userId) {
         List<Friend> friends = new LinkedList<>();
         try {
@@ -233,61 +245,10 @@ public class UserRepositoryMysql implements IUserDatabase{
     }
 
     @Override
-    public String generatePairKey(String token) {
-        try {
-            if (validateJwt(token)) {
-                User user = getUserByToken(token);
-                if (user != null) {
-                    KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
-                    kpg.initialize(1024);
-                    KeyPair kp = kpg.generateKeyPair();
-                    Key pub = kp.getPublic();
-                    Key pvt = kp.getPrivate();
-                    String pubEncBase64 = Base64.getEncoder().encodeToString(pub.getEncoded());
-                    String pvtEncBase64 = Base64.getEncoder().encodeToString(pvt.getEncoded());
-                    Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-                    this.jdbcTemplate.update("REPLACE INTO EPairKeyServer(username, fullName, keyPb, keyPv, formatKeyPb, formatKeyPv, createdAt) " +
-                            "VALUES(?, ?, ?, ?, ?, ?, ?)", user.getUsername(), user.getFullName(), pubEncBase64, pvtEncBase64, pub.getFormat(), pvt.getFormat(), timestamp.getTime());
-                    return Base64.getEncoder().encodeToString(pub.getEncoded());
-                } else {
-                    return "";
-                }
-            } else {
-                return "";
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return "";
-    }
-
-    @Override
-    public Integer updatePublicClientKey(String token, String pbKey) {
-        try {
-            if (validateJwt(token)) {
-                User user = getUserByToken(token);
-                if (user != null) {
-                    Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-                    this.jdbcTemplate.update("REPLACE INTO EPairKeyClient(username, fullName, keyPb, createdAt) " +
-                            "VALUES(?, ?, ?, ?)", user.getUsername(), user.getFullName(), pbKey, timestamp.getTime());
-                    return 0;
-                } else {
-                    return -1;
-                }
-            } else {
-                return -1;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return -1;
-    }
-
-    @Override
     public Integer store(Message message) {
         String sql = "INSERT INTO Messages(`from`, message, timestamp, type_message) VALUES(?, ?, ?, ?)";
         try{
-            Integer rowModified = this.jdbcTemplate.update(sql, message.getFrom(), message, message.getBody(),
+            Integer rowModified = this.jdbcTemplate.update(sql, message.getFrom(), message.getBody(),
                     message.getTimestamp(), message.getType());
             return rowModified;
         }catch (Exception e) {
@@ -295,27 +256,4 @@ public class UserRepositoryMysql implements IUserDatabase{
             return -1;
         }
     }
-
-    @Override
-    public String getPrivateKeyServer(String username) {
-        try {
-            String sql = "SELECT keyPv FROM EPairKeyServer WHERE username=?";
-            return this.jdbcTemplate.queryForObject(sql, new String[]{username}, String.class);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    @Override
-    public String getPublicKeyClient(String username) {
-        try {
-            String sql = "SELECT keyPb FROM EPairKeyClient WHERE username=?";
-            return this.jdbcTemplate.queryForObject(sql, new String[]{username}, String.class);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
 }

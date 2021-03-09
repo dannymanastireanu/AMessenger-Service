@@ -21,7 +21,7 @@ public class SignInOutRestController {
 
 
     @PostMapping("/user/login")
-    public ResponseEntity<String> login(@Valid @RequestBody final User user, final HttpServletRequest request) {
+    public ResponseEntity<String> login(@Valid @RequestBody final User user) {
         String token = "ERROR";
         try {
             if(userService.validateUser(user))

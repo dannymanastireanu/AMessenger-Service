@@ -22,10 +22,6 @@ public interface IUserDatabase {
     public boolean makeOnline(String token);
     public boolean makeOffline(String token);
     public List<Message> getMessages(String token);
-    public String getPrivateKeyServer(String username);
-    public String getPublicKeyClient(String username);
-    String generatePairKey(String token);
-    Integer updatePublicClientKey(String token, String pbKey);
-
+    public Integer getIdByUsername(String username);
     Integer store(Message message);
 }
