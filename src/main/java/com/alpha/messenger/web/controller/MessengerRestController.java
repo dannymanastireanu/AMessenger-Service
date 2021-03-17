@@ -5,8 +5,11 @@ import com.alpha.messenger.persistance.model.Friend;
 import com.alpha.messenger.persistance.model.Message;
 import com.alpha.messenger.persistance.model.User;
 import com.alpha.messenger.service.IUserService;
+import com.alpha.messenger.spring.RabbitMqConnectionFactoryComponent;
 import com.alpha.messenger.web.util.Encryption;
 import com.alpha.messenger.web.util.MyJWT;
+import org.springframework.amqp.core.AmqpTemplate;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +32,16 @@ public class MessengerRestController {
 
     @Autowired
     private SimpMessagingTemplate smtp;
+    @Autowired
+    private RabbitMqConnectionFactoryComponent connectionFactory;
+
+    private AmqpTemplate amqpTemplate;
+
+    @Autowired
+    public void initTemplate(){
+        this.amqpTemplate = connectionFactory.rabbitTemplate();
+    }
+
 
     @MessageMapping("/chat/{to}")
     public void sendMessage(@DestinationVariable String to, Message message) {
@@ -40,6 +53,7 @@ public class MessengerRestController {
                 smtp.convertAndSend("/topic/messages/" + f.getUsername(), message);
             });
             userService.store(message);
+            this.amqpTemplate.convertAndSend(connectionFactory.getExchange(), connectionFactory.getRoutingKey(), message.toString());
         }
     }
 
